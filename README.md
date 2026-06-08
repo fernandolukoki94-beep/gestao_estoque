@@ -1,33 +1,21 @@
-# Système de Gestion de Stock et Produits (API REST)
+# Sistema de Gestão de Stock Completo (CRUD)
 
-Ce projet consiste en un système de gestion d'inventaire et de produits automatisé, développé sous forme d'API REST résiliente. Conçu initialement pour répondre aux besoins d'organisation des flux logistiques et de stockage d'entreprise, ce système a été entièrement optimisé pour s'exécuter dans des environnements aux ressources matérielles restreintes.
+Este é um projeto de backend desenvolvido em ambiente Termux, utilizando Python, Flask e PostgreSQL.
 
-## 🚀 Caractéristiques du Projet
+## 🛠️ Arquitetura da API (Porta 5001)
 
-- **Architecture Backend Légère :** Développé en Python avec le micro-framework Flask, garantissant des performances rapides et une consommation minimale de mémoire.
-- **Persistance des Données (SQL) :** Intégration d'une base de données relationnelle SQLite, utilisant des requêtes SQL pures pour la création de tables et les opérations de manipulation de données.
-- **Opérations CRUD Complètes :** Gestion totale des produits (Création, Lecture, Mise à jour et Suppression) via des points de terminaison (Endpoints) API standardisés au format JSON.
-- **Optimisation Linux & CLI :** Système entièrement configuré, testé et exécuté via l'interface en ligne de commande (Terminal CLI) sous un environnement Linux.
-
-## 🛠️ Technologies Utilisées
-
-- **Langage :** Python 3
-- **Framework Web :** Flask
-- **Base de Données :** SQLite (SQL)
-- **Environnement de Déploiement :** Linux / CLI (Termux)
-
-## 📌 Endpoints de l'API (Architecture REST)
-
-| Méthode | Action | Endpoint | Corps de la Requête (JSON) |
+| Método | Endpoint | Descrição | Status |
 | :--- | :--- | :--- | :--- |
-| **POST** | Ajouter un produit | `/produtos` | `{"nome": "Produit", "quantidade": 10, "preco": 150.0}` |
-| **GET** | Lister tous les produits | `/produtos` | Aucun |
-| **PUT** | Modifier un produit par ID | `/produtos/<id>` | `{"nome": "Nouveau Nom", "quantidade": 5, "preco": 160.0}` |
-| **DELETE** | Supprimer un produit par ID | `/produtos/<id>` | Aucun |
+| **GET** | `/produtos` | Lista todos os itens do stock | `200 OK` |
+| **POST** | `/produtos` | Adiciona um novo produto | `201 Created` |
+| **PUT** | `/produtos/<id>` | Atualiza dados de um item existente | `200 OK` |
+| **DELETE** | `/produtos/<id>` | Remove permanentemente um item pelo ID | `200 OK` |
 
-## 💻 Comment Exécuter le Projet Localement
+## 💻 Como Testar (Exemplos)
 
-1. **Initialiser la base de données SQL :**
-```bash
-   python database.py
+### Atualizar Produto (PUT)
+curl -X PUT http://127.0.0.1:5001/produtos/1 -H "Content-Type: application/json" -d '{"nome": "Cobalt Bouazzer", "quantidade": 75, "preco": 1500.0}'
+
+### Eliminar Produto (DELETE)
+curl -X DELETE http://127.0.0.1:5001/produtos/1
 
