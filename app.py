@@ -8,9 +8,8 @@ app = Flask(__name__)
 def conectar_banco():
     # Obtém o utilizador atual do sistema automaticamente
     usuario_atual = os.getlogin()
-    
-    # Conecta ao PostgreSQL. Usamos RealDictCursor para que o retorno 
-    # seja em formato de dicionário pronto para virar JSON, igual ao sqlite3.Row
+
+    # Conecta ao PostgreSQL usando RealDictCursor
     conn = psycopg2.connect(
         host="127.0.0.1",
         database="estoque_db",
@@ -20,82 +19,104 @@ def conectar_banco():
     )
     return conn
 
-# 1. Validação de Dados (Melhoria de Segurança)
-def validar_produto(dados):
-    if not dados or 'nome' not in dados or 'quantidade' not in dados or 'preco' not in dados:
-        return False
-    if not dados['nome'].strip(): # Evita nomes vazios ou só com espaços
-        return False
-    if not isinstance(dados['quantidade'], int) or dados['quantidade'] < 0:
-        return False
-    if not isinstance(dados['preco'], (int, float)) or dados['preco'] < 0:
-        return False
-    return True
-
-# Rota POST - Criar Produto (Com tratamento de erros)
+# ==========================================
+# 1. ROTA POST: ADICIONAR PRODUTO
+# ==========================================
 @app.route('/produtos', methods=['POST'])
 def adicionar_produto():
     dados = request.get_json()
-    if not validar_produto(dados):
-        return jsonify({"erro": "Dados inválidos. Verifique os campos, valores e tipos."}), 400
+    if not dados:
+        return jsonify({"erro": "Dados inválidos"}), 400
+        
+    nome = dados.get('nome')
+    quantidade = dados.get('quantidade')
+    preco = dados.get('preco')
     
-    try:
-        conn = conectar_banco()
-        cursor = conn.cursor()
-        
-        # No PostgreSQL usamos RETURNING id para pegar o ID gerado pelo SERIAL
-        cursor.execute(
-            'INSERT INTO produtos (nome, quantidade, preco) VALUES (%s, %s, %s) RETURNING id',
-            (dados['nome'], dados['quantidade'], dados['preco'])
-        )
-        id_gerado = cursor.fetchone()['id']
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({"id": id_gerado, "mensagem": "Produto adicionado com sucesso!"}), 201
-        
-    except Exception as e:
-        return jsonify({"erro": f"Erro interno no servidor: {str(e)}"}), 500
+    if not nome or quantidade is None or preco is None:
+        return jsonify({"erro": "Campos obrigatórios em falta"}), 400
 
-# Rota GET - Listar Todos os Produtos (Simplificada e limpa)
+    conn = conectar_banco()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO produtos (nome, quantidade, preco) VALUES (%s, %s, %s) RETURNING id;",
+                (nome.strip(), quantidade, preco)
+            )
+            produto_id = cursor.fetchone()['id']
+            conn.commit()
+            return jsonify({"id": produto_id, "mensagem": "Produto adicionado com sucesso!"}), 201
+    except Exception as e:
+        return jsonify({"erro": f"Erro na base de dados: {e}"}), 500
+    finally:
+        conn.close()
+
+# ==========================================
+# 2. ROTA GET: LISTAR TODOS OS PRODUTOS
+# ==========================================
 @app.route('/produtos', methods=['GET'])
 def listar_produtos():
+    conn = conectar_banco()
     try:
-        conn = conectar_banco()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT * FROM produtos')
-        produtos = cursor.fetchall() # Já vem como lista de dicionários por causa do RealDictCursor
-        
-        cursor.close()
-        conn.close()
-        return jsonify(produtos), 200
-        
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM produtos ORDER BY id;")
+            produtos = cursor.fetchall()
+            return jsonify(produtos), 200
     except Exception as e:
-        return jsonify({"erro": f"Erro ao listar produtos: {str(e)}"}), 500
-
-# Rota GET - Buscar Produto Específico por ID (Nova Funcionalidade)
-@app.route('/produtos/<int:id>', methods=['GET'])
-def buscar_produto(id):
-    try:
-        conn = conectar_banco()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT * FROM produtos WHERE id = %s', (id,))
-        produto = cursor.fetchone()
-        
-        cursor.close()
+        return jsonify({"erro": f"Erro ao listar: {e}"}), 500
+    finally:
         conn.close()
+
+# ==========================================
+# 3. ROTA PUT: ATUALIZAR PRODUTO (A que estava a faltar!)
+# ==========================================
+@app.route('/produtos/<int:id>', methods=['PUT'])
+def atualizar_produto(id):
+    dados = request.get_json()
+    if not dados:
+        return jsonify({"erro": "Payload JSON ausente"}), 400
         
-        if not produto:
+    nome = dados.get('nome')
+    quantidade = dados.get('quantidade')
+    preco = dados.get('preco')
+    
+    if not nome or quantidade is None or preco is None:
+        return jsonify({"erro": "Campos obrigatórios em falta"}), 400
+
+    conn = conectar_banco()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE produtos 
+                SET nome = %s, quantidade = %s, preco = %s 
+                WHERE id = %s;
+                """,
+                (nome.strip(), quantidade, preco, id)
+            )
+            conn.commit()
+            if cursor.rowcount > 0:
+                return jsonify({"mensagem": "Produto atualizado com sucesso!"}), 200
+            return jsonify({"erro": "Produto não encontrado para atualização"}), 404
+    except Exception as e:
+        return jsonify({"erro": f"Erro ao atualizar: {e}"}), 500
+    finally:
+        conn.close()
+
+# ==========================================
+# 4. ROTA DELETE: ELIMINAR PRODUTO
+# ==========================================
+@app.route('/produtos/<int:id>', methods=['DELETE'])
+def eliminar_produto(id):
+    conn = conectar_banco()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM produtos WHERE id = %s;", (id,))
+            conn.commit()
+            if cursor.rowcount > 0:
+                return jsonify({"mensagem": "Produto eliminado com sucesso!"}), 200
             return jsonify({"erro": "Produto não encontrado"}), 404
-            
-        return jsonify(produto), 200
-        
     except Exception as e:
-        return jsonify({"erro": f"Erro ao buscar produto: {str(e)}"}), 500
-
+        return jsonify({"erro": f"Erro ao eliminar: {e}"}), 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5001, debug=True)
 
